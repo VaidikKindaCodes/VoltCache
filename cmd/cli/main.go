@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
 	"github.com/VaidikKindaCodes/VoltCache/pkg/resp"
 )
 
@@ -43,9 +44,26 @@ func main() {
 	reader := bufio.NewReader(conn)
 	args := flag.Args()
 	if len(args) > 0 {
-		if err := sendAndPrint(conn, reader, args); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+		args = normalizeCommand(args)
+		switch strings.ToUpper(args[0]) {
+		case "SUBSCRIBE":
+			if err := sendCommand(conn, args); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			for {
+				value, err := readRESPValue(reader)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					os.Exit(1)
+				}
+				printRESPValue(value, 0)
+			}
+		default:
+			if err := sendAndPrint(conn, reader, args); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
 		}
 		return
 	}
@@ -59,8 +77,26 @@ func main() {
 }
 
 func runInteractive(conn net.Conn, reader *bufio.Reader, address string) error {
+	messageErr := make(chan error, 1)
+	go func() {
+		for {
+			value, err := readRESPValue(reader)
+			if err != nil {
+				messageErr <- err
+				return
+			}
+			printRESPValue(value, 0)
+		}
+	}()
+
 	input := bufio.NewReader(os.Stdin)
 	for {
+		select {
+		case err := <-messageErr:
+			return err
+		default:
+		}
+
 		fmt.Printf("%s> ", address)
 		line, err := input.ReadString('\n')
 		if err != nil {
@@ -80,18 +116,31 @@ func runInteractive(conn net.Conn, reader *bufio.Reader, address string) error {
 			continue
 		}
 
+		parts = normalizeCommand(parts)
 		switch strings.ToUpper(parts[0]) {
 		case "QUIT", "EXIT":
 			return nil
 		case "HELP":
 			printHelp()
 			continue
-		}
-
-		if err := sendAndPrint(conn, reader, parts); err != nil {
-			fmt.Printf("(error) %v\n", err)
+		case "SUBSCRIBE":
+			if err := sendCommand(conn, parts); err != nil {
+				fmt.Printf("(error) %v\n", err)
+			}
+			continue
+		default:
+			if err := sendAndPrint(conn, reader, parts); err != nil {
+				fmt.Printf("(error) %v\n", err)
+			}
 		}
 	}
+}
+
+func sendCommand(conn net.Conn, parts []string) error {
+	if _, err := conn.Write([]byte(resp.EncodeRESPArray(parts))); err != nil {
+		return fmt.Errorf("could not send command: %w", err)
+	}
+	return nil
 }
 
 func sendAndPrint(conn net.Conn, reader *bufio.Reader, parts []string) error {
@@ -105,6 +154,21 @@ func sendAndPrint(conn net.Conn, reader *bufio.Reader, parts []string) error {
 	}
 	printRESPValue(value, 0)
 	return nil
+}
+
+func normalizeCommand(parts []string) []string {
+	if len(parts) == 0 {
+		return parts
+	}
+	cmd := strings.ToUpper(parts[0])
+	if cmd == "PUB" {
+		parts[0] = "PUBLISH"
+	} else if cmd == "SUB" {
+		parts[0] = "SUBSCRIBE"
+	} else if cmd == "UNSUB" {
+		parts[0] = "UNSUBSCRIBE"
+	}
+	return parts
 }
 
 func readRESPValue(reader *bufio.Reader) (respValue, error) {
@@ -280,6 +344,12 @@ func printHelp() {
 	fmt.Println("  SET <key> <value> [PX milliseconds]")
 	fmt.Println("  GET <key>")
 	fmt.Println("  INFO")
+	fmt.Println("  SUBSCRIBE <channel>")
+	fmt.Println("  UNSUBSCRIBE <channel>")
+	fmt.Println("  PUBLISH <channel> <message>")
+	fmt.Println("  PUB <channel> <message>")
+	fmt.Println("  SUB <channel>")
+	fmt.Println("  UNSUB <channel>")
 	fmt.Println("  WAIT <replicas> <timeout-ms>")
 	fmt.Println("  REPLCONF <option> [value]")
 	fmt.Println("  PSYNC <replication-id> <offset>")

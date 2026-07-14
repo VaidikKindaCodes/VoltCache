@@ -1,26 +1,21 @@
 package storage
 
 import (
-	"fmt"
 	"sync"
 	"time"
-    "github.com/VaidikKindaCodes/VoltCache/internals/domain"
+
+	"github.com/VaidikKindaCodes/VoltCache/internals/domain"
 )
 
 type inMemoryStore struct {
-	data map[string]Entry
+	data map[string]domain.Entry
 	mu   sync.Mutex
-}
-
-type Entry struct {
-	Value      string
-	Expiration *time.Time
 }
 
 // NewInMemoryStore creates a new in-memory store.
 func NewInMemoryStore() domain.Store {
 	return &inMemoryStore{
-		data: make(map[string]Entry),
+		data: make(map[string]domain.Entry),
 	}
 }
 
@@ -32,9 +27,7 @@ func (s *inMemoryStore) Set(key, value string, px time.Duration) {
 		expiration := time.Now().Add(px)
 		expirationPtr = &expiration
 	}
-	fmt.Println("expirationPtr: ", expirationPtr)
-	s.data[key] = Entry{Value: value, Expiration: expirationPtr}
-
+	s.data[key] = domain.Entry{Value: value, Expiration: expirationPtr}
 }
 
 func (s *inMemoryStore) Get(key string) (string, bool) {
@@ -52,4 +45,16 @@ func (s *inMemoryStore) Get(key string) (string, bool) {
 	}
 
 	return entry.Value, true
+}
+
+func (s *inMemoryStore) Entries() map[string]domain.Entry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	copy := make(map[string]domain.Entry, len(s.data))
+	for k, v := range s.data {
+		copy[k] = v
+	}
+
+	return copy
 }

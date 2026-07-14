@@ -71,6 +71,15 @@ To run a single command and exit:
 ```
 ./volt-cache-cli SET name Vaidik
 ./volt-cache-cli GET name
+./volt-cache-cli SUBSCRIBE mychannel
+./volt-cache-cli PUBLISH mychannel hello
+```
+
+The CLI supports pub/sub aliases too:
+
+```
+./volt-cache-cli SUB mychannel
+./volt-cache-cli PUB mychannel hello
 ```
 
 The CLI supports quoted arguments in interactive mode, for example:
@@ -98,6 +107,9 @@ The server will automatically load the database from the specified RDB file on s
 - `SET`: Set a key-value pair (with optional expiration)
 - `GET`: Get the value of a key
 - `INFO`: Get information about the server
+- `SUBSCRIBE`: Subscribe to a channel for published messages
+- `UNSUBSCRIBE`: Unsubscribe from a channel
+- `PUBLISH`: Publish a message to a channel
 - `REPLCONF`: Used in replication
 - `PSYNC`: Used in replication
 - `WAIT`: Wait for replication
