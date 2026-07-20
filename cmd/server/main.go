@@ -137,7 +137,7 @@ func main() {
 }
 
 func startServer(listener net.Listener, handler domain.CommandHandler) {
-	fmt.Printf("Server listening on port %s\n", listener.Addr().(*net.TCPAddr).Port)
+	fmt.Printf("Server listening on port %d\n", listener.Addr().(*net.TCPAddr).Port)
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
